@@ -1011,7 +1011,9 @@ function showCvOffer(){
               && /\S+@\S+\.\S+/.test(val("email"));
   Object.values(F).forEach(x=>x.oninput=()=>btn.disabled=!ok());
 
-  const willDeliver = /netlify\.(app|com)$/.test(location.hostname) || FORCE_NETLIFY_FORMS || FORM_ACCESS_KEY;
+  const willDeliver = /netlify\.(app|com)$/.test(location.hostname) || FORCE_NETLIFY_FORMS
+                      || FORM_ACCESS_KEY
+                      || location.protocol === "http:" || location.protocol === "https:";
   btn.textContent = willDeliver ? "Send my request" : "Compose my request";
   document.getElementById("privacyNote").textContent = willDeliver
     ? "Your details go straight to "+SERVICE_EMAIL+" and nowhere else. No account, no mailing list, no tracking."
@@ -1050,10 +1052,18 @@ Please confirm price and turnaround before starting.`};
       +"?subject="+encodeURIComponent(b.subject)+"&body="+encodeURIComponent(b.body);
   };
 
-  /* Netlify captures the form itself — no third-party service, no access key.
-     Falls back to Web3Forms if a key is set, then to the visitor's mail app. */
+  /* Delivery order, best available first:
+       netlify    — captured by the host itself, if deployed there
+       web3forms  — if you set an access key
+       formsubmit — no account, no key; works anywhere. Needs a one-time
+                    "Activate" click in the first email it sends you.
+       mailto     — only when the page is opened from disk                */
   const onNetlify = /netlify\.(app|com)$/.test(location.hostname) || FORCE_NETLIFY_FORMS;
-  const mode = onNetlify ? "netlify" : (FORM_ACCESS_KEY ? "web3forms" : "mailto");
+  const online    = location.protocol === "http:" || location.protocol === "https:";
+  const mode = onNetlify ? "netlify"
+             : FORM_ACCESS_KEY ? "web3forms"
+             : online ? "formsubmit"
+             : "mailto";
 
   const sendNetlify=async b=>{
     document.getElementById("hPackage").value  = tier.name+" — "+tier.price+" ("+tier.turn+")";
@@ -1067,6 +1077,25 @@ Please confirm price and turnaround before starting.`};
       body:new URLSearchParams(new FormData(form)).toString()
     });
     if(!res.ok) throw new Error("netlify "+res.status);
+  };
+
+  const sendFormSubmit=async b=>{
+    const res=await fetch("https://formsubmit.co/ajax/"+encodeURIComponent(SERVICE_EMAIL),{
+      method:"POST",
+      headers:{"Content-Type":"application/json",Accept:"application/json"},
+      body:JSON.stringify({
+        _subject:b.subject,
+        _template:"table",
+        _captcha:"false",
+        name:val("name"), email:val("email"),
+        package:tier.name+" — "+tier.price+" ("+tier.turn+")",
+        location:val("where"), payout_region:b.geoLabel, background:b.skillLabel,
+        existing_cv:val("link")||"none",
+        what_i_do_now:val("now"), platforms:b.targets
+      })
+    });
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok || String(data.success)!=="true") throw new Error(data.message||"formsubmit "+res.status);
   };
 
   const sendWeb3=async b=>{
@@ -1099,7 +1128,9 @@ Please confirm price and turnaround before starting.`};
 
     btn.disabled=true; btn.textContent="Sending…"; say("","");
     try{
-      if(mode==="netlify") await sendNetlify(b); else await sendWeb3(b);
+      if(mode==="netlify")          await sendNetlify(b);
+      else if(mode==="web3forms")   await sendWeb3(b);
+      else                          await sendFormSubmit(b);
       btn.textContent="Sent ✓";
       say("Got it — your request is with "+YOUR_NAME+". You'll hear back within "+tier.turn+", usually sooner. Check your spam folder if you don't see a reply.","good");
       Object.values(F).forEach(x=>x.value="");
