@@ -559,23 +559,31 @@
       <div>
         <p class="pickone">Pick what you need — you can change it before sending.</p>
         <div id="tiers" role="radiogroup" aria-label="Choose a package"></div>
-        <div class="formcard" style="margin-top:18px">
+        <form class="formcard" style="margin-top:18px"
+              name="cv-request" method="POST" data-netlify="true" netlify-honeypot="cvTrap"
+              onsubmit="return false">
+          <input type="hidden" name="form-name" value="cv-request">
           <h4>Send your brief</h4>
-          <p class="fsub">Four fields. We reply before any money changes hands.</p>
-          <div class="fld"><label for="cvName">Your name</label><input id="cvName" type="text" placeholder="Full name" autocomplete="name"></div>
-          <div class="fld"><label for="cvEmail">Your email</label><input id="cvEmail" type="email" placeholder="you@example.com" autocomplete="email"></div>
+          <p class="fsub">Five fields. We reply before any money changes hands.</p>
+          <div class="fld"><label for="cvName">Your name</label><input id="cvName" name="name" type="text" placeholder="Full name" autocomplete="name"></div>
+          <div class="fld"><label for="cvEmail">Your email</label><input id="cvEmail" name="email" type="email" placeholder="you@example.com" autocomplete="email"></div>
           <div class="fld">
             <label for="cvWhere">Where are you based?</label>
             <p class="fhint">City, state or region, country. A US résumé and a UK CV are different documents, and we need your time zone for scheduling.</p>
-            <input id="cvWhere" type="text" placeholder="City, state/region, country" autocomplete="address-level2">
+            <input id="cvWhere" name="location" type="text" placeholder="City, state/region, country" autocomplete="address-level2">
           </div>
-          <div class="fld"><label for="cvNow">What do you do right now?</label><textarea id="cvNow" placeholder="e.g. Final-year computer science student. Built two small games in Godot. No paid work experience yet."></textarea></div>
-          <div class="fld"><label for="cvLink">Existing CV or LinkedIn <span style="color:var(--dim2);font-weight:400">(optional)</span></label><input id="cvLink" type="text" placeholder="Paste a link, or leave blank"></div>
-          <input id="cvTrap" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" class="trap">
-          <button class="send" id="cvSend" disabled>Send my request</button>
+          <div class="fld"><label for="cvNow">What do you do right now?</label><textarea id="cvNow" name="what_i_do_now" placeholder="e.g. Final-year computer science student. Built two small games in Godot. No paid work experience yet."></textarea></div>
+          <div class="fld"><label for="cvLink">Existing CV or LinkedIn <span style="color:var(--dim2);font-weight:400">(optional)</span></label><input id="cvLink" name="existing_cv" type="text" placeholder="Paste a link, or leave blank"></div>
+          <input id="cvTrap" name="cvTrap" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" class="trap">
+          <!-- filled by JS at submit time so Netlify records them as columns -->
+          <input type="hidden" name="package" id="hPackage">
+          <input type="hidden" name="payout_region" id="hRegion">
+          <input type="hidden" name="background" id="hBackground">
+          <input type="hidden" name="platforms" id="hPlatforms">
+          <button class="send" id="cvSend" type="submit" disabled>Send my request</button>
           <p class="status" id="cvStatus"></p>
           <p class="sendnote" id="privacyNote"></p>
-        </div>
+        </form>
       </div>
     </div>
   </section>
@@ -645,6 +653,11 @@ const YOUR_NAME       = "Franckline";
    which means YOU RECEIVE NOTHING unless they press send themselves.     */
 const FORM_ACCESS_KEY = "";
 
+/* Netlify captures the form natively — nothing to configure, no key, no third party.
+   Auto-detected on *.netlify.app. Set this to true only if you attach a custom
+   domain to a Netlify site, so the page still knows it's on Netlify.            */
+const FORCE_NETLIFY_FORMS = false;
+
 const TIERS = [
   {id:"rewrite", name:"CV Rewrite", price:"$15", turn:"48 hours",
    best:"You already have a CV and it's just the wrong shape.",
@@ -654,7 +667,7 @@ const TIERS = [
    best:"You're starting from nothing and want everything ready in one go.",
    inc:["Everything in CV Rewrite","A profile paragraph for each platform you're applying to","A matching LinkedIn headline","Two free revisions"]},
 
-  {id:"setup", name:"Sit-With-You Setup", price:"$60", turn:"Within 5 days",
+  {id:"setup", name:"Sit-With-You Setup", price:"$60", turn:"5 days",
    best:"You want someone beside you while you actually submit.",
    inc:["Everything in Application Pack","We go through your first four applications with you","Two weeks of WhatsApp support while you wait","We review any assessment brief before you start"]}
 ];
@@ -998,9 +1011,10 @@ function showCvOffer(){
               && /\S+@\S+\.\S+/.test(val("email"));
   Object.values(F).forEach(x=>x.oninput=()=>btn.disabled=!ok());
 
-  btn.textContent = FORM_ACCESS_KEY ? "Send my request" : "Compose my request";
-  document.getElementById("privacyNote").textContent = FORM_ACCESS_KEY
-    ? "Your details go straight to "+SERVICE_EMAIL+" and nowhere else. No account, no mailing list, nothing stored on this site."
+  const willDeliver = /netlify\.(app|com)$/.test(location.hostname) || FORCE_NETLIFY_FORMS || FORM_ACCESS_KEY;
+  btn.textContent = willDeliver ? "Send my request" : "Compose my request";
+  document.getElementById("privacyNote").textContent = willDeliver
+    ? "Your details go straight to "+SERVICE_EMAIL+" and nowhere else. No account, no mailing list, no tracking."
     : "This opens your own email app with the brief already filled in. Nothing is sent until you press send yourself.";
 
   const status=document.getElementById("cvStatus");
@@ -1036,34 +1050,59 @@ Please confirm price and turnaround before starting.`};
       +"?subject="+encodeURIComponent(b.subject)+"&body="+encodeURIComponent(b.body);
   };
 
-  btn.onclick=async ()=>{
+  /* Netlify captures the form itself — no third-party service, no access key.
+     Falls back to Web3Forms if a key is set, then to the visitor's mail app. */
+  const onNetlify = /netlify\.(app|com)$/.test(location.hostname) || FORCE_NETLIFY_FORMS;
+  const mode = onNetlify ? "netlify" : (FORM_ACCESS_KEY ? "web3forms" : "mailto");
+
+  const sendNetlify=async b=>{
+    document.getElementById("hPackage").value  = tier.name+" — "+tier.price+" ("+tier.turn+")";
+    document.getElementById("hRegion").value   = b.geoLabel;
+    document.getElementById("hBackground").value = b.skillLabel;
+    document.getElementById("hPlatforms").value = b.targets;
+    const form=document.querySelector("form[name='cv-request']");
+    const res=await fetch("/",{
+      method:"POST",
+      headers:{"Content-Type":"application/x-www-form-urlencoded"},
+      body:new URLSearchParams(new FormData(form)).toString()
+    });
+    if(!res.ok) throw new Error("netlify "+res.status);
+  };
+
+  const sendWeb3=async b=>{
+    const res=await fetch("https://api.web3forms.com/submit",{
+      method:"POST",headers:{"Content-Type":"application/json",Accept:"application/json"},
+      body:JSON.stringify({
+        access_key:FORM_ACCESS_KEY, subject:b.subject,
+        from_name:"FirstPayout — "+tier.name,
+        name:val("name"), email:val("email"),
+        package:tier.name+" — "+tier.price+" ("+tier.turn+")",
+        location:val("where"), payout_region:b.geoLabel, background:b.skillLabel,
+        existing_cv:val("link")||"none",
+        what_i_do_now:val("now"), platforms:b.targets, message:b.body
+      })
+    });
+    const data=await res.json();
+    if(!(res.ok&&data.success)) throw new Error(data.message||"rejected");
+  };
+
+  btn.onclick=async e=>{
+    e.preventDefault();
     if(document.getElementById("cvTrap").value) return;   /* honeypot */
     const b=buildBrief();
-    if(!FORM_ACCESS_KEY){
+
+    if(mode==="mailto"){
       openMailApp(b);
       say("Your email app should have opened. If nothing happened, email "+SERVICE_EMAIL+" directly — we reply to every message.","warn");
       return;
     }
+
     btn.disabled=true; btn.textContent="Sending…"; say("","");
     try{
-      const res=await fetch("https://api.web3forms.com/submit",{
-        method:"POST",headers:{"Content-Type":"application/json",Accept:"application/json"},
-        body:JSON.stringify({
-          access_key:FORM_ACCESS_KEY, subject:b.subject,
-          from_name:"FirstPayout — "+tier.name,
-          name:val("name"), email:val("email"),
-          package:tier.name+" — "+tier.price+" ("+tier.turn+")",
-          location:val("where"), payout_region:b.geoLabel, background:b.skillLabel,
-          existing_cv:val("link")||"none",
-          what_i_do_now:val("now"), platforms:b.targets, message:b.body
-        })
-      });
-      const data=await res.json();
-      if(res.ok&&data.success){
-        btn.textContent="Sent ✓";
-        say("Got it — your request is in "+YOUR_NAME+"'s inbox. You'll hear back within "+tier.turn+", usually sooner. Check your spam folder if you don't see a reply.","good");
-        Object.values(F).forEach(x=>x.value="");
-      } else throw new Error(data.message||"rejected");
+      if(mode==="netlify") await sendNetlify(b); else await sendWeb3(b);
+      btn.textContent="Sent ✓";
+      say("Got it — your request is with "+YOUR_NAME+". You'll hear back within "+tier.turn+", usually sooner. Check your spam folder if you don't see a reply.","good");
+      Object.values(F).forEach(x=>x.value="");
     }catch(err){
       btn.disabled=false; btn.textContent="Send my request";
       say("That didn't go through. Opening your email app instead — or write to "+SERVICE_EMAIL+" directly.","bad");
