@@ -404,6 +404,12 @@
   .cmail{background:var(--inv);color:var(--invInk)}
   .cwa{background:#25D366;color:#04220f}
   .contacts a:hover{opacity:.88}
+  .addr{
+    display:inline-block;margin-top:4px;font-weight:650;color:var(--ink);cursor:pointer;
+    border-bottom:1px dashed var(--line2);padding-bottom:1px;user-select:all;
+  }
+  .addr:hover{border-color:var(--ink)}
+  .addrmsg{color:var(--good);font-weight:650;font-size:12px;margin-left:6px}
 
   /* facts */
   .facts{display:grid;gap:14px;grid-template-columns:repeat(3,1fr)}
@@ -1035,11 +1041,34 @@ function showCvOffer(){
   });
 
   const c=document.getElementById("contacts");
-  let links=`<a class="cmail" href="mailto:${SERVICE_EMAIL}?subject=${encodeURIComponent("Question about AI training platforms")}">✉ Email us</a>`;
+  let links="";
   if(WHATSAPP_NUMBER) links+=`<a class="cwa" href="https://wa.me/${WHATSAPP_NUMBER}" target="_blank" rel="noopener noreferrer">WhatsApp us</a>`;
+  links+=`<a class="cmail" id="mailBtn" href="mailto:${SERVICE_EMAIL}?subject=${encodeURIComponent("Question about AI training platforms")}">✉ Email us</a>`;
   c.innerHTML=links;
-  document.getElementById("whoNote").textContent=
-    `You'll be talking to ${YOUR_NAME}, not a bot or a support queue.`+(WHATSAPP_NUMBER?"":" "+SERVICE_EMAIL);
+
+  /* mailto only opens anything if the device has a mail app registered — on a
+     desktop without one the click does nothing at all. So always copy the
+     address too, and keep it on screen as plain selectable text. */
+  document.getElementById("whoNote").innerHTML=
+    `You'll be talking to ${YOUR_NAME}, not a bot or a support queue.<br>`
+    +`<span class="addr" id="addr" role="button" tabindex="0" title="Click to copy">${SERVICE_EMAIL}</span>`
+    +` <span id="addrMsg" class="addrmsg"></span>`;
+
+  const flash=m=>{ const el=document.getElementById("addrMsg"); el.textContent=m;
+                   setTimeout(()=>{ el.textContent=""; },2400); };
+  const copyAddr=async ()=>{
+    try{ await navigator.clipboard.writeText(SERVICE_EMAIL); flash("copied ✓"); }
+    catch(err){
+      const t=document.createElement("textarea"); t.value=SERVICE_EMAIL;
+      t.style.cssText="position:fixed;left:-9999px"; document.body.appendChild(t);
+      const okc=legacyCopy(t); t.remove();
+      flash(okc?"copied ✓":"select and copy the address above");
+    }
+  };
+  const addr=document.getElementById("addr");
+  addr.onclick=copyAddr;
+  addr.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); copyAddr(); } };
+  document.getElementById("mailBtn").addEventListener("click",copyAddr);
 
   const F={
     name : document.getElementById("cvName"),
