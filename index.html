@@ -94,15 +94,48 @@
   }
   .navcta b{opacity:.62;font-weight:600}
   .navcta:hover{opacity:.88}
-  @media(max-width:860px){nav a:nth-child(n+3){display:none}}
+  /* hamburger — only exists below the width where the full nav fits */
+  .menubtn{
+    display:none;width:36px;height:36px;border-radius:9px;border:1px solid var(--line);
+    background:var(--panel);color:var(--ink);cursor:pointer;position:relative;flex:none;
+  }
+  .menubtn:hover{background:var(--panel2)}
+  .menubtn i{
+    position:absolute;left:9px;right:9px;height:2px;background:currentColor;border-radius:2px;
+    transition:transform .2s, opacity .15s;
+  }
+  .menubtn i:nth-child(1){top:11px} .menubtn i:nth-child(2){top:17px} .menubtn i:nth-child(3){top:23px}
+  .menubtn[aria-expanded="true"] i:nth-child(1){transform:translateY(6px) rotate(45deg)}
+  .menubtn[aria-expanded="true"] i:nth-child(2){opacity:0}
+  .menubtn[aria-expanded="true"] i:nth-child(3){transform:translateY(-6px) rotate(-45deg)}
+
+  .menupanel{
+    position:absolute;left:0;right:0;top:100%;background:var(--bg);
+    border-bottom:1px solid var(--line);box-shadow:var(--shadowUp);padding:8px 0 12px;
+  }
+  .menupanel[hidden]{display:none}
+  .menupanel a{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:14px 24px;min-height:52px;text-decoration:none;color:var(--ink);
+    font-size:16px;font-weight:600;border-bottom:1px solid var(--line);
+  }
+  .menupanel a:last-child{border-bottom:0}
+  .menupanel a:active{background:var(--panel2)}
+  .menupanel a span{font-size:13px;color:var(--dim2);font-weight:450;text-align:right}
+  .menupanel a::after{content:"›";color:var(--dim2);font-size:18px;line-height:1}
+
+  @media(max-width:760px){
+    nav{display:none}
+    .menubtn{display:block}
+  }
   @media(max-width:620px){
     .topin{height:56px;gap:10px}
-    nav{display:none}
     .navcta{padding:8px 12px;font-size:12.5px}
+    .menupanel a{padding:14px 16px}
   }
   @media(max-width:440px){
     .bt{display:none}
-    .themebtn{width:34px;height:34px}
+    .themebtn,.menubtn{width:34px;height:34px}
     .navcta{padding:8px 11px;font-size:12px}
   }
 
@@ -405,8 +438,17 @@
     <span class="spacer"></span>
     <div class="tools">
       <button class="themebtn" id="theme" type="button" aria-label="Switch light or dark theme">◐</button>
+      <button class="menubtn" id="menu" type="button" aria-expanded="false"
+              aria-controls="menuPanel" aria-label="Open menu"><i></i><i></i><i></i></button>
       <a class="navcta" href="#cvOffer" id="ctaPrice">CV service <b id="fromPrice"></b></a>
     </div>
+  </div>
+
+  <div class="menupanel" id="menuPanel" hidden>
+    <a href="#top">Start<span>Answer 2 questions</span></a>
+    <a href="#results">Platforms<span>Your ranked list</span></a>
+    <a href="#cvOffer">Pricing<span id="menuPrice"></span></a>
+    <a href="#support">Support<span>Free — ask anything</span></a>
   </div>
 </header>
 
@@ -1190,18 +1232,33 @@ Please confirm price and turnaround before starting.`;
   };
 }
 
-/* header nav — Pricing/Support work even before the quiz is answered */
-["navPricing","ctaPrice","navSupport"].forEach(id=>{
-  document.getElementById(id).addEventListener("click",()=>{
-    if(document.getElementById("cvOffer").classList.contains("hidden")) showCvOffer();
+/* ---------------- navigation ---------------- */
+const panel=document.getElementById("menuPanel");
+const menuBtn=document.getElementById("menu");
+document.getElementById("menuPrice").textContent="CV service from "+TIERS[0].price;
+
+const closeMenu=()=>{ panel.hidden=true; menuBtn.setAttribute("aria-expanded","false"); menuBtn.setAttribute("aria-label","Open menu"); };
+const openMenu =()=>{ panel.hidden=false; menuBtn.setAttribute("aria-expanded","true");  menuBtn.setAttribute("aria-label","Close menu"); };
+menuBtn.onclick=e=>{ e.stopPropagation(); panel.hidden?openMenu():closeMenu(); };
+document.addEventListener("click",e=>{ if(!panel.hidden && !panel.contains(e.target)) closeMenu(); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeMenu(); });
+window.addEventListener("resize",()=>{ if(innerWidth>760) closeMenu(); });
+
+/* every jump link — header nav, burger panel and the CV button — behaves the same:
+   reveal the target if it is still hidden, and shut the menu behind you. */
+document.querySelectorAll('a[href^="#"]').forEach(a=>{
+  a.addEventListener("click",e=>{
+    const target=a.getAttribute("href");
+    if(target==="#cvOffer"||target==="#support"){
+      if(document.getElementById("cvOffer").classList.contains("hidden")) showCvOffer();
+    }
+    if(target==="#results" && document.getElementById("results").classList.contains("hidden")){
+      e.preventDefault();
+      document.getElementById("top").scrollIntoView({behavior:"smooth"});
+      const first=document.querySelector("#geo .opt"); if(first) first.focus();
+    }
+    closeMenu();
   });
-});
-document.getElementById("navResults").addEventListener("click",e=>{
-  if(document.getElementById("results").classList.contains("hidden")){
-    e.preventDefault();
-    document.getElementById("top").scrollIntoView({behavior:"smooth"});
-    document.getElementById("geo").firstChild.focus();
-  }
 });
 
 /* active nav state */
