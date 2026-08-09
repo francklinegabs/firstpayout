@@ -345,6 +345,12 @@
   .send{width:100%;padding:14px;border:0;border-radius:11px;cursor:pointer;margin-top:4px;background:var(--inv);color:var(--invInk);font-weight:750;font-size:15px;font-family:inherit}
   .send:hover:not(:disabled){opacity:.87}
   .send:disabled{background:var(--panel2);color:var(--dim2);cursor:not-allowed}
+  .send.wa{background:#25D366;color:#04220f;display:flex;align-items:center;justify-content:center;gap:9px}
+  .send.wa:disabled{background:var(--panel2);color:var(--dim2)}
+  .send.wa svg{width:19px;height:19px;flex:none}
+  .send.alt{background:transparent;color:var(--ink);border:1px solid var(--line2);margin-top:9px;font-size:14px;padding:12px}
+  .send.alt:hover:not(:disabled){background:var(--panel2);opacity:1}
+  .send.alt:disabled{background:transparent;color:var(--dim2);border-color:var(--line)}
   .sendnote{font-size:12.3px;color:var(--dim2);margin-top:11px;line-height:1.6}
   .trap{position:absolute!important;left:-9999px!important;width:1px!important;height:1px!important;opacity:0!important}
   .status{font-size:13.3px;line-height:1.6;margin-top:12px;border-radius:9px}
@@ -580,7 +586,8 @@
           <input type="hidden" name="payout_region" id="hRegion">
           <input type="hidden" name="background" id="hBackground">
           <input type="hidden" name="platforms" id="hPlatforms">
-          <button class="send" id="cvSend" type="submit" disabled>Send my request</button>
+          <button class="send wa" id="cvWa" type="button" disabled><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91C21.96 6.45 17.5 2 12.04 2Zm5.8 14.02c-.24.68-1.42 1.31-1.95 1.36-.5.05-.98.23-3.3-.69-2.77-1.09-4.54-3.92-4.68-4.1-.14-.19-1.12-1.49-1.12-2.84s.71-2.02.96-2.29c.25-.28.55-.35.73-.35.18 0 .37 0 .53.01.17.01.4-.6.62.48.24.57.8 1.97.87 2.11.07.14.12.31.02.5-.09.19-.14.31-.28.47-.14.17-.29.37-.42.5-.14.14-.28.29-.12.57.16.28.72 1.18 1.54 1.91 1.06.94 1.95 1.24 2.23 1.38.28.14.44.12.6-.07.17-.19.7-.81.88-1.09.19-.28.37-.23.63-.14.25.09 1.65.78 1.93.92.28.14.47.21.54.33.07.11.07.66-.17 1.34Z"/></svg>Send on WhatsApp</button>
+          <button class="send alt" id="cvSend" type="submit" disabled>Or send by email</button>
           <p class="status" id="cvStatus"></p>
           <p class="sendnote" id="privacyNote"></p>
         </form>
@@ -643,7 +650,7 @@
    Leave it "" and the WhatsApp button hides itself — no dead link ships.
    Prices below are placeholders. Set your own before publishing.        */
 const SERVICE_EMAIL   = "francklinewere8@gmail.com";
-const WHATSAPP_NUMBER = "";
+const WHATSAPP_NUMBER = "254119251706";
 const YOUR_NAME       = "Franckline";
 
 /* FORM_ACCESS_KEY — this is what actually delivers requests to your inbox.
@@ -1007,17 +1014,19 @@ function showCvOffer(){
   };
   F.where.placeholder = WHERE_EG[geo] || "City, state/region, country";
 
+  const waBtn=document.getElementById("cvWa");
   const ok=()=>["name","email","where","now"].every(k=>val(k).length>1)
               && /\S+@\S+\.\S+/.test(val("email"));
-  Object.values(F).forEach(x=>x.oninput=()=>btn.disabled=!ok());
+  const sync=()=>{ const bad=!ok(); btn.disabled=bad; waBtn.disabled=bad; };
+  Object.values(F).forEach(x=>x.oninput=sync);
 
   const willDeliver = /netlify\.(app|com)$/.test(location.hostname) || FORCE_NETLIFY_FORMS
                       || FORM_ACCESS_KEY
                       || location.protocol === "http:" || location.protocol === "https:";
-  btn.textContent = willDeliver ? "Send my request" : "Compose my request";
-  document.getElementById("privacyNote").textContent = willDeliver
-    ? "Your details go straight to "+SERVICE_EMAIL+" and nowhere else. No account, no mailing list, no tracking."
-    : "This opens your own email app with the brief already filled in. Nothing is sent until you press send yourself.";
+  btn.textContent = "Or send by email";
+  document.getElementById("privacyNote").textContent =
+    "WhatsApp opens with your brief already written — you just press send. Nothing is stored on this site, "
+    + "no mailing list, no tracking.";
 
   const status=document.getElementById("cvStatus");
   const say=(m,k)=>{ status.textContent=m; status.className="status "+k; };
@@ -1046,6 +1055,28 @@ ${targets}
 
 Please confirm price and turnaround before starting.`};
   };
+
+  /* WhatsApp deep link. No service, no activation, no deliverability risk —
+     it opens their WhatsApp with the whole brief typed out ready to send. */
+  const waText=b=>
+`*CV REQUEST — FirstPayout*
+
+*Package:* ${tier.name} — ${tier.price} (${tier.turn})
+
+*Name:* ${val("name")}
+*Email:* ${val("email")}
+*Location:* ${val("where")}
+*Payout region:* ${b.geoLabel}
+*Background:* ${b.skillLabel}
+*CV / LinkedIn:* ${val("link")||"none"}
+
+*What I do right now:*
+${val("now")}
+
+*Platforms I'm applying to:*
+${b.targets}
+
+Please confirm price and turnaround before starting.`;
 
   const openMailApp=b=>{
     window.location.href="mailto:"+SERVICE_EMAIL
@@ -1113,6 +1144,14 @@ Please confirm price and turnaround before starting.`};
     });
     const data=await res.json();
     if(!(res.ok&&data.success)) throw new Error(data.message||"rejected");
+  };
+
+  waBtn.onclick=()=>{
+    if(document.getElementById("cvTrap").value) return;   /* honeypot */
+    const b=buildBrief();
+    window.open("https://wa.me/"+WHATSAPP_NUMBER+"?text="+encodeURIComponent(waText(b)),
+                "_blank","noopener");
+    say("WhatsApp should have opened with your brief already written. Press send there and "+YOUR_NAME+" gets it straight away.","good");
   };
 
   btn.onclick=async e=>{
