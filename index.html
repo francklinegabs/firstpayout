@@ -351,6 +351,9 @@
   .send.alt{background:transparent;color:var(--ink);border:1px solid var(--line2);margin-top:9px;font-size:14px;padding:12px}
   .send.alt:hover:not(:disabled){background:var(--panel2);opacity:1}
   .send.alt:disabled{background:transparent;color:var(--dim2);border-color:var(--line)}
+  .sendsub{font-size:12px;color:var(--dim2);text-align:center;margin:7px 0 0;line-height:1.5}
+  .sendsub.good{color:#12b356}
+  :root[data-theme="dark"] .sendsub.good{color:#4ade80}
   .sendnote{font-size:12.3px;color:var(--dim2);margin-top:11px;line-height:1.6}
   .trap{position:absolute!important;left:-9999px!important;width:1px!important;height:1px!important;opacity:0!important}
   .status{font-size:13.3px;line-height:1.6;margin-top:12px;border-radius:9px}
@@ -587,7 +590,9 @@
           <input type="hidden" name="background" id="hBackground">
           <input type="hidden" name="platforms" id="hPlatforms">
           <button class="send wa" id="cvWa" type="button" disabled><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91C21.96 6.45 17.5 2 12.04 2Zm5.8 14.02c-.24.68-1.42 1.31-1.95 1.36-.5.05-.98.23-3.3-.69-2.77-1.09-4.54-3.92-4.68-4.1-.14-.19-1.12-1.49-1.12-2.84s.71-2.02.96-2.29c.25-.28.55-.35.73-.35.18 0 .37 0 .53.01.17.01.4-.6.62.48.24.57.8 1.97.87 2.11.07.14.12.31.02.5-.09.19-.14.31-.28.47-.14.17-.29.37-.42.5-.14.14-.28.29-.12.57.16.28.72 1.18 1.54 1.91 1.06.94 1.95 1.24 2.23 1.38.28.14.44.12.6-.07.17-.19.7-.81.88-1.09.19-.28.37-.23.63-.14.25.09 1.65.78 1.93.92.28.14.47.21.54.33.07.11.07.66-.17 1.34Z"/></svg>Send on WhatsApp</button>
+          <p class="sendsub good">Fastest — lands on the phone straight away, usually answered within the hour.</p>
           <button class="send alt" id="cvSend" type="submit" disabled>Or send by email</button>
+          <p class="sendsub">A little slower — usually answered the same day.</p>
           <p class="status" id="cvStatus"></p>
           <p class="sendnote" id="privacyNote"></p>
         </form>
@@ -1159,11 +1164,16 @@ Please confirm price and turnaround before starting.`;
     if(document.getElementById("cvTrap").value) return;   /* honeypot */
     const b=buildBrief();
 
-    if(mode==="mailto"){
+    /* Handing off to the visitor's own mail app is a normal outcome, not a
+       failure — never show it in red, and never leave the button relabelled. */
+    const handOff=()=>{
       openMailApp(b);
-      say("Your email app should have opened. If nothing happened, email "+SERVICE_EMAIL+" directly — we reply to every message.","warn");
-      return;
-    }
+      btn.disabled=false; btn.textContent="Or send by email";
+      say("Your email app is opening with everything already written — just press send there. "
+         +"If nothing opens, write to "+SERVICE_EMAIL+" directly, or use WhatsApp above for a faster reply.","warn");
+    };
+
+    if(mode==="mailto"){ handOff(); return; }
 
     btn.disabled=true; btn.textContent="Sending…"; say("","");
     try{
@@ -1173,10 +1183,9 @@ Please confirm price and turnaround before starting.`;
       btn.textContent="Sent ✓";
       say("Got it — your request is with "+YOUR_NAME+". You'll hear back within "+tier.turn+", usually sooner. Check your spam folder if you don't see a reply.","good");
       Object.values(F).forEach(x=>x.value="");
+      sync();
     }catch(err){
-      btn.disabled=false; btn.textContent="Send my request";
-      say("That didn't go through. Opening your email app instead — or write to "+SERVICE_EMAIL+" directly.","bad");
-      openMailApp(b);
+      handOff();
     }
   };
 }
